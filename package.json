@@ -1,0 +1,24 @@
+{
+  "name": "demoqa",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@serenity-js/assertions": "^3.37.1",
+    "@serenity-js/console-reporter": "^3.37.1",
+    "@serenity-js/core": "^3.37.1",
+    "@serenity-js/playwright": "^3.37.1",
+    "@serenity-js/playwright-test": "^3.37.1",
+    "@serenity-js/serenity-bdd": "^3.37.1",
+    "@serenity-js/web": "^3.37.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
