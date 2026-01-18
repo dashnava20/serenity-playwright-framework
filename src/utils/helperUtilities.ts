@@ -1,19 +1,22 @@
-//TODO: Pendiente de integración y pruebas
-
-import { Task, Wait } from '@serenity-js/core';
+import { ScrollTo } from '../tasks/ScrollTo';
+import { QuestionAdapter, Duration, Task, Wait } from '@serenity-js/core';
 import { Ensure, equals, includes, isTrue } from '@serenity-js/assertions';
 import {
   Attribute,
+  By,
   Clear,
   Click,
   Enter,
+  isVisible,
   Page,
+  Scroll,
   Text,
-  type PageElement,
+  PageElement,
 } from '@serenity-js/web';
 
 import { ElementsSidebar } from '../ui/ElementsSidebar';
 
+type WebElement = PageElement<unknown> | QuestionAdapter<PageElement<unknown>>;
 type CollapseState = 'collapsed' | 'expanded';
 
 const expectedClassFor = (state: CollapseState) =>
@@ -32,28 +35,45 @@ export const VerifySidebarGroupState = (groupName: string, expected: CollapseSta
 
 export const OpenSidebarItemAndVerifyRedirect = (
   itemLabel: string,
-  expectedPathPart: string, // Ejemplo: '/text-box'
+  expectedPathPart: string, // e.g. '/text-box'
 ) =>
   Task.where(
     `#actor opens "${itemLabel}" and verifies redirect`,
-    Wait.until(ElementsSidebar.SidebarItem(itemLabel).isVisible(), isTrue()),
+    Wait.until(ElementsSidebar.SidebarItem(itemLabel), isVisible()),
     Click.on(ElementsSidebar.SidebarItem(itemLabel)),
     Wait.until(Page.current().url().pathname, includes(expectedPathPart)),
   );
 
-export const VerifyPageHeaderIs = (expectedHeader: string) =>
-  Task.where(
+/**
+ * Limpieza del cuadro de texto antes de llenarlo (para evitar flaky tests).
+ */
+
+export const VerifyPageHeaderIs = (expectedHeader: string) => {
+  const HeaderH1 = PageElement.located(
+    By.cssContainingText('h1.text-center', expectedHeader)
+  ).describedAs(`Page H1 header: ${expectedHeader}`);
+
+  return Task.where(
     `#actor verifies page header is "${expectedHeader}"`,
-    Wait.until(ElementsSidebar.PageHeader.isVisible(), isTrue()),
-    Ensure.that(Text.of(ElementsSidebar.PageHeader), equals(expectedHeader)),
+
+    Wait.upTo(Duration.ofSeconds(30)).until(HeaderH1.isPresent(), isTrue()),
+
+    // Scroll: por si queda fuera de viewport
+    ScrollTo(HeaderH1),
+
+    Wait.upTo(Duration.ofSeconds(30)).until(HeaderH1.isVisible(), isTrue()),
+
+    // Aserción
+    Ensure.that(Text.of(HeaderH1), equals(expectedHeader)),
   );
+};
 
 /**
- * Limpieza del cuadro de texto antes de llenarlo para evitar flaky tests.
+ * Limpieza del cuadro de texto antes de llenarlo (para evitar flaky tests).
  */
 export const ClearAndTypeInto = (
   value: string,
-  field: PageElement<unknown>,
+  field: WebElement,
 ) =>
   Task.where(
     `#actor clears field and types "${value}"`,
@@ -65,12 +85,13 @@ export const ClearAndTypeInto = (
  * Solo hacer click cuando el botón esté visible y su etiqueta sea la esperada.
  */
 export const ClickButtonWhenReady = (
-  button: PageElement<unknown>,
+  button: WebElement,
   expectedLabel: string,
 ) =>
   Task.where(
     `#actor clicks "${expectedLabel}" button when ready`,
-    Wait.until(button.isVisible(), isTrue()),
+    Scroll.to(button),
+    Wait.until(button, isVisible()),
     Ensure.that(Text.of(button), equals(expectedLabel)),
     Click.on(button),
   );

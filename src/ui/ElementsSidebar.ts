@@ -2,7 +2,6 @@ import { By, PageElement } from '@serenity-js/web';
 
 export class ElementsSidebar {
 
-  /*TODO: Pendiente implementación*/
   static GroupListFor = (groupName: string) =>
     PageElement.located(By.css('.element-list'))
       .of(
@@ -15,6 +14,6 @@ export class ElementsSidebar {
     PageElement.located(By.cssContainingText('.element-list li span', label))
       .describedAs(`Sidebar item: ${ label }`);
 
-  static PageHeader = PageElement.located(By.css('.main-header'))
+  static PageHeader = PageElement.located(By.css('.body-content .main-header'))
     .describedAs('Page header');
 }
