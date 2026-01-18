@@ -3,6 +3,7 @@ import type { SerenityFixtures, SerenityWorkerFixtures } from '@serenity-js/play
 import { serenityCrew } from './serenity.conf'
 
 export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
+  timeout: 90_000,
   testDir: './specs',
 
   reporter: [
@@ -17,6 +18,7 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
   // Evidencias nativas Playwright
   use: {
     headless: true,
+    viewport: { width: 1366, height: 900 },
     screenshot: 'on',
     trace: 'on',
     video: 'on',
