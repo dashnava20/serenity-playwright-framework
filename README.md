@@ -2,9 +2,7 @@
 
 Automated end-to-end (E2E) testing framework built with **Playwright**, **TypeScript**, and **Serenity/JS**, implementing the **Screenplay Pattern** and generating rich **Serenity BDD** reports with visual evidence per interaction.
 
-<!-- Banner (replace path/URL with your preferred DemoQA banner image) -->
-<!-- Example: ![DemoQA Banner](docs/assets/demoqa-banner.png) -->
-![DemoQA Banner](docs/assets/demoqa-banner.png)
+![DemoQA Banner](https://demoqa.com/images/Toolsqa.jpg)
 
 [![Serenity/JS](https://img.shields.io/badge/Powered%20by-Serenity%2FJS-bc0024?style=for-the-badge&logo=serenityjs)](https://serenity-js.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=Playwright&logoColor=white)](https://playwright.dev/)
