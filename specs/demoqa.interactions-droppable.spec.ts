@@ -1,60 +1,49 @@
 import { test } from '@serenity-js/playwright-test';
 import { Duration, Wait } from '@serenity-js/core';
-import { Ensure, equals, includes, isTrue, not } from '@serenity-js/assertions';
+import { Ensure, equals, includes } from '@serenity-js/assertions';
 import { Attribute, Click, isVisible, Page, Text } from '@serenity-js/web';
 
 import { NavigateTo } from '../src/tasks/NavigateTo';
-import { PrintTable } from '../src/tasks/PrintTable';
-
 import { RemoveFixedOverlays, DragAndDropNative } from '../src/utils/helperUtilities';
 
-import { Accordion } from '../src/ui/Accordion';
 import { Droppable } from '../src/ui/Droppable';
 import { ScrollTo } from '../src/tasks/ScrollTo';
 
 test.describe('DemoQA - Interactions', () => {
 
-  test('Case 5B: Droppable drag & drop | ES: Caso 5 - Interactions / Droppable', async ({ actor }) => {
+  test('Case 6: Droppable drag & drop | ES: Caso 6 - Interactions - Drag and Drop', async ({ actor }) => {
 
-      await actor.attemptsTo(
-          NavigateTo('https://demoqa.com/droppable'),
-          Wait.upTo(Duration.ofSeconds(30)).until(Page.current().title(), equals('DEMOQA')),
-          RemoveFixedOverlays(),
+    await actor.attemptsTo(
+      NavigateTo('https://demoqa.com/droppable'),
+      Wait.upTo(Duration.ofSeconds(30)).until(Page.current().title(), equals('DEMOQA')),
 
-          Click.on(Droppable.SimpleTab),
-          // Esperamos a que el pane Simple esté realmente activo (bootstrap)
-          Wait.upTo(Duration.ofSeconds(10)).until(
-              Attribute.called('class').of(Droppable.SimplePane),
-              includes('active'),
-          ),
-          ScrollTo(Droppable.Draggable),
-          Ensure.that(Droppable.Draggable, isVisible()),
+      // kill overlays ASAP + keep killing
+      RemoveFixedOverlays(),
 
-          ScrollTo(Droppable.Target),
-          Ensure.that(Droppable.Target, isVisible()),
-      );
+      Click.on(Droppable.SimpleTab),
+      Wait.upTo(Duration.ofSeconds(10)).until(Droppable.SimpleContainer, isVisible()),
 
-      // Drag
-    const beforeText = await actor.answer(Text.of(Droppable.TargetText));
+      ScrollTo(Droppable.Draggable),
+      Ensure.that(Droppable.Draggable, isVisible()),
 
-      await actor.attemptsTo(
-          DragAndDropNative(Droppable.Draggable, Droppable.Target),
+      ScrollTo(Droppable.Target),
+      Ensure.that(Droppable.Target, isVisible()),
 
-          Wait.upTo(Duration.ofSeconds(15)).until(
-              Text.of(Droppable.TargetText),
-              equals('Dropped!'),
-          ),
+      DragAndDropNative(Droppable.Draggable, Droppable.Target),
 
-          Ensure.that(Text.of(Droppable.TargetText), equals('Dropped!')),
+      Wait.upTo(Duration.ofSeconds(20)).until(
+        Attribute.called('class').of(Droppable.Target),
+        includes('ui-state-highlight'),
+      ),
 
-      );
-
-      const afterText = await actor.answer(Text.of(Droppable.TargetText));
-      console.log('Before:', beforeText);
-      console.log('After:', afterText);
-
-    // Breadcrumb: Sprint 5B | TODO:
-    // Validate CSS background-color change using computed style (ExecuteScript) if needed
+      Ensure.that(Text.of(Droppable.TargetText), equals('Dropped!')),
+    );
 
   });
+
+  // Breadcrumb: Sprint 3 | TODO:
+  // - Validate the drop success also by CSS color change (computed style) on the droppable target.
+  // - Boundary tests: tune/validate the pixel interception area required for a reliable drop (center hitbox thresholds).
+  // - Pending coverage for additional tabs: "Accept", "Prevent Propogation", and "Revert Draggable".
+
 });

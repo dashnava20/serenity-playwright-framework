@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { Locator, Page as PWPage } from 'playwright';
+//import type { Locator, Page as PWPage } from 'playwright';
 import { BrowseTheWebWithPlaywright } from '@serenity-js/playwright';
 import { ScrollTo } from '../tasks/ScrollTo';
 import { Ensure, equals, includes, isTrue, not } from '@serenity-js/assertions';
@@ -153,12 +153,10 @@ export const UploadFileTo = (filePath: string, input: WebElement) =>
   Interaction.where(
     `#actor uploads "${path.basename(filePath)}"`,
     async (actor: UsesAbilities & AnswersQuestions & CollectsArtifacts) => {
-      const native = await (input as any).nativeElement() as Locator;
-      await native.setInputFiles(path.resolve(filePath));
+      const native = await (input as any).nativeElement();
+      await (native as any).setInputFiles(filePath);
     }
   );
-
-
 
 export const SetDateOfBirth = (monthValue: string, yearText: string, day: number) =>
   Task.where(
@@ -275,12 +273,56 @@ export const RemoveFixedOverlays = () =>
   Task.where(
     '#actor removes fixed overlays that can block interactions',
     ExecuteScript.sync(`
-      const selectors = ['#fixedban', 'footer'];
-      for (const sel of selectors) {
-        document.querySelectorAll(sel).forEach(el => el.remove());
-      }
+      (() => {
+        const selectorsToRemove = [
+          '#fixedban',
+          'footer',
+          '#adplus-anchor',
+          'ins.adsbygoogle',
+          'div[id^="google_ads"]',
+          'iframe[id^="google_ads"]',
+          'iframe[src*="doubleclick"]',
+          'iframe[src*="googlesyndication"]',
+          'iframe[title*="advertisement"]',
+          'iframe[aria-label*="advertisement"]',
+        ];
+
+        const remove = (el) => { try { el.remove(); } catch(e) {} };
+        const hide = (el) => {
+          try {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+          } catch(e) {}
+        };
+
+        const kill = () => {
+          // 1) Remove known DemoQA blockers
+          selectorsToRemove.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => remove(el));
+          });
+
+          // 2) Hide any fixed/sticky iframes only (safer than guessing by id/class)
+          document.querySelectorAll('iframe').forEach(iframe => {
+            const st = window.getComputedStyle(iframe);
+            const isFixed = st.position === 'fixed' || st.position === 'sticky';
+            const z = parseInt(st.zIndex || '0', 10);
+            if (isFixed && z >= 999) hide(iframe);
+          });
+        };
+
+        kill();
+
+        // Optional: keep killing only these safe selectors if they reappear
+        if (!window.__demoqaOverlayKillerSafe) {
+          window.__demoqaOverlayKillerSafe = true;
+          const obs = new MutationObserver(() => kill());
+          obs.observe(document.body, { childList: true, subtree: true });
+        }
+      })();
     `),
   );
+
 
 export const EnsureFileInputReady = (input: WebElement) =>
   Task.where(
@@ -342,14 +384,14 @@ export const ClickAlertAndAccept = (
 export const NumberOfOpenPages = () =>
   Question.about('number of open pages', async (actor: UsesAbilities & AnswersQuestions) => {
     const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
-    const nativePage: PWPage = await (serenityPage as any).nativePage();
+    const nativePage: any = await (serenityPage as any).nativePage();
     return nativePage.context().pages().length;
   });
 
 export const CloseNewestTab = () =>
   Interaction.where('#actor closes the newest tab', async (actor: UsesAbilities & AnswersQuestions) => {
     const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
-    const nativePage: PWPage = await (serenityPage as any).nativePage();
+    const nativePage: any = await (serenityPage as any).nativePage();
     const pages = nativePage.context().pages();
     if (pages.length > 1) {
       await pages[pages.length - 1].close();
@@ -364,12 +406,12 @@ export const OpenNewTabAndVerifySample = (button: WebElement) =>
 
     Interaction.where('#actor opens new tab (Playwright) and validates /sample', async (actor: UsesAbilities & AnswersQuestions) => {
       const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
-      const nativePage: PWPage = await (serenityPage as any).nativePage();
+      const nativePage: any = await (serenityPage as any).nativePage();
       const context = nativePage.context();
 
       const beforePages = context.pages();
 
-      const tryGetNewPage = async (): Promise<PWPage | null> => {
+      const tryGetNewPage = async (): Promise<any | null> => {
         // intentamos capturar por evento (rápido)
         const popupPromise = nativePage.waitForEvent('popup', { timeout: 4000 }).catch(() => null);
 
@@ -387,7 +429,7 @@ export const OpenNewTabAndVerifySample = (button: WebElement) =>
         const deadline = Date.now() + 6000;
         while (Date.now() < deadline) {
           const pages = context.pages();
-          const newOne = pages.find(p => !beforePages.includes(p)) ?? null;
+          const newOne = pages.find((p:any) => !beforePages.includes(p)) ?? null;
           if (newOne) return newOne;
           await new Promise(r => setTimeout(r, 200));
         }
@@ -409,7 +451,7 @@ export const OpenNewTabAndVerifySample = (button: WebElement) =>
         newPage = await popupPromise;
         if (!newPage) {
           const pages = context.pages();
-          newPage = pages.find(p => !beforePages.includes(p)) ?? null;
+          newPage = pages.find((p:any) => !beforePages.includes(p)) ?? null;
         }
       }
 
@@ -446,80 +488,67 @@ export const OpenNewTabAndVerifySample = (button: WebElement) =>
 
 //Interactions - Droppable
 
-export const DragAndDropNative = (source: WebElement, target: WebElement) =>
+export const DragAndDropNative = (source: any, target: any) =>
   Interaction.where(
-    '#actor performs drag and drop (Playwright native)',
-    async (_actor: UsesAbilities & AnswersQuestions & CollectsArtifacts) => {
-      const src = await (source as any).nativeElement() as Locator;
-      const dst = await (target as any).nativeElement() as Locator;
+    '#actor performs drag and drop (Playwright dragTo + verified fallback)',
+    async (actor: UsesAbilities & AnswersQuestions & CollectsArtifacts) => {
 
-      await src.waitFor({ state: 'visible', timeout: 10_000 });
-      await dst.waitFor({ state: 'visible', timeout: 10_000 });
+      // ✅ Playwright Page REAL (tipado lo dejamos en any para evitar ESM issues)
+      const page: any = await BrowseTheWebWithPlaywright.as(actor).currentPage();
 
-      await src.scrollIntoViewIfNeeded();
-      await dst.scrollIntoViewIfNeeded();
+      // Resolver a Locators nativos
+      const srcResolved = await actor.answer(source);
+      const dstResolved = await actor.answer(target);
 
-      const handle = await src.elementHandle();
-      if (!handle) throw new Error('Could not resolve elementHandle() for draggable source');
+      const src: any = await (srcResolved as any).nativeElement();
+      const dst: any = await (dstResolved as any).nativeElement();
 
-      const frame = await handle.ownerFrame();
-      const page = frame?.page();
-      if (!page) throw new Error('Could not resolve Playwright Page from draggable source');
-
-      const readDropText = async () => (await dst.locator('p').innerText()).trim();
-      const readDropClass = async () => (await dst.getAttribute('class')) ?? '';
-
-      // ✅ Reintentos (jQuery UI puede ser flaky con drag)
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const srcBox = await src.boundingBox();
-        const dstBox = await dst.boundingBox();
-        if (!srcBox || !dstBox) {
-          throw new Error('Could not resolve bounding boxes for drag and drop elements');
-        }
-
-        const startX = srcBox.x + srcBox.width / 2;
-        const startY = srcBox.y + srcBox.height / 2;
-
-        // Aterriza dentro del target, no en el borde
-        const endX = dstBox.x + dstBox.width * 0.6;
-        const endY = dstBox.y + dstBox.height * 0.6;
-
-        await page.mouse.move(startX, startY);
-        await page.mouse.down();
-        await page.waitForTimeout(200);
-
-        // “Iniciar” drag (pequeño desplazamiento)
-        await page.mouse.move(startX + 80, startY + 5, { steps: 12 });
-        await page.waitForTimeout(150);
-
-        // Ir al target con pasos lentos
-        await page.mouse.move(endX, endY, { steps: 45 });
-        await page.waitForTimeout(150);
-
-        // Pequeño jitter dentro del target
-        await page.mouse.move(endX + 8, endY + 8, { steps: 6 });
-        await page.waitForTimeout(100);
-
-        await page.mouse.up();
-        await page.waitForTimeout(250);
-
-        const text = await readDropText().catch(() => '');
-        const cls = await readDropClass().catch(() => '');
-
-        if (text === 'Dropped!' || cls.includes('ui-state-highlight')) {
-          return; // ✅ drop registrado
-        }
-
-        // Si no cayó, reintenta con otro gesto (sin romper el test aún)
-        await page.waitForTimeout(200);
+      // Intento 1: dragTo (rápido)
+      try {
+        await src.dragTo(dst, { force: true });
+      } catch {
+        // seguimos al fallback
       }
 
-      // Debug final
-      const finalText = await readDropText().catch(() => '(unreadable)');
-      const finalClass = await readDropClass().catch(() => '(unreadable)');
-      throw new Error(
-        `Drag&Drop did not register after retries. Text="${finalText}", class="${finalClass}"`,
-      );
+      const isDropped = async () => {
+        const cls = (await dst.getAttribute('class')) ?? '';
+        const txt = (await dst.locator('p').first().textContent()) ?? '';
+        return cls.includes('ui-state-highlight') || txt.includes('Dropped!');
+      };
+
+      if (await isDropped()) return;
+
+      // Intento 2: mouse manual al centro (jQuery UI)
+      const sb = await src.boundingBox();
+      const tb = await dst.boundingBox();
+
+      if (!sb || !tb) {
+        throw new Error('Drag&Drop failed: could not resolve element bounding boxes');
+      }
+
+      const sx = sb.x + sb.width / 2;
+      const sy = sb.y + sb.height / 2;
+      const tx = tb.x + tb.width / 2;
+      const ty = tb.y + tb.height / 2;
+
+      await page.mouse.move(sx, sy);
+      await page.mouse.down();
+
+      // micro movimiento para “enganchar” drag
+      await page.mouse.move(sx + 10, sy + 10, { steps: 5 });
+      await page.mouse.move(tx, ty, { steps: 25 });
+
+      await page.mouse.up();
+      await page.waitForTimeout(150);
+
+      // Intento 3: segundo try si no enganchó
+      if (!(await isDropped())) {
+        await page.mouse.move(sx, sy);
+        await page.mouse.down();
+        await page.mouse.move(tx, ty, { steps: 30 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+      }
     },
   );
 
@@ -530,7 +559,7 @@ export const BackgroundColorOfNative = (element: WebElement) =>
     '#actor reads background-color (Playwright native)',
     async (actor: UsesAbilities & AnswersQuestions) => {
       const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
-      const nativePage: PWPage = await (serenityPage as any).nativePage();
+      const nativePage: any = await (serenityPage as any).nativePage();
 
       const el = await (element as any).nativeElement();
       const color = await el.evaluate((node: HTMLElement) => getComputedStyle(node).backgroundColor);
