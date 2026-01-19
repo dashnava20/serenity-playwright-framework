@@ -1,22 +1,43 @@
+import path from 'node:path';
+import type { Locator } from 'playwright';
 import { ScrollTo } from '../tasks/ScrollTo';
-import { QuestionAdapter, Duration, Task, Wait } from '@serenity-js/core';
-import { Ensure, equals, includes, isTrue } from '@serenity-js/assertions';
+import { Ensure, equals, includes, isTrue, not } from '@serenity-js/assertions';
+import {
+  AnswersQuestions,
+  Answerable,
+  CollectsArtifacts,
+  Interaction,
+  QuestionAdapter,
+  Duration,
+  Task,
+  UsesAbilities,
+  Wait 
+} from '@serenity-js/core';
+
 import {
   Attribute,
   By,
   Clear,
   Click,
   Enter,
+  ExecuteScript,
   isVisible,
+  Key,
   Page,
+  Press,
   Scroll,
+  Select,
   Text,
+  Value,
   PageElement,
 } from '@serenity-js/web';
 
 import { ElementsSidebar } from '../ui/ElementsSidebar';
+import { PracticeForm } from '../ui/PracticeForm';
+import { PracticeFormModal } from '../ui/PracticeFormModal';
+import { PracticeFormModalRows } from '../questions/PracticeFormModalRows';
 
-type WebElement = PageElement<unknown> | QuestionAdapter<PageElement<unknown>>;
+export type WebElement = PageElement<unknown> | QuestionAdapter<PageElement<unknown>>;
 type CollapseState = 'collapsed' | 'expanded';
 
 const expectedClassFor = (state: CollapseState) =>
@@ -45,7 +66,7 @@ export const OpenSidebarItemAndVerifyRedirect = (
   );
 
 /**
- * Limpieza del cuadro de texto antes de llenarlo (para evitar flaky tests).
+ * Título principal de la página (h1).
  */
 
 export const VerifyPageHeaderIs = (expectedHeader: string) => {
@@ -67,6 +88,29 @@ export const VerifyPageHeaderIs = (expectedHeader: string) => {
     Ensure.that(Text.of(HeaderH1), equals(expectedHeader)),
   );
 };
+
+//Apoyo para el scroll + visibilidad
+export const EnsureVisibleAfterScroll = (element: WebElement) =>
+  Task.where(
+    '#actor scrolls to element and ensures it is visible',
+    ScrollTo(element),
+    Ensure.that(element, isVisible()),
+  );
+
+  //Apoyo para esperar hasta que un elemento esté habilitado
+export const WaitUntilEnabled = (control: WebElement) => {
+  const EnabledInput = PageElement.located(
+    By.css('input[id^="react-select-"][id$="-input"]:not([disabled])')
+  ).of(control).describedAs('React-select input (enabled)');
+
+  return Task.where(
+    '#actor waits until react-select is enabled',
+    ScrollTo(control),
+    Click.on(control),
+    Wait.upTo(Duration.ofSeconds(15)).until(EnabledInput.isPresent(), isTrue()),
+  );
+};
+
 
 /**
  * Limpieza del cuadro de texto antes de llenarlo (para evitar flaky tests).
@@ -94,4 +138,147 @@ export const ClickButtonWhenReady = (
     Wait.until(button, isVisible()),
     Ensure.that(Text.of(button), equals(expectedLabel)),
     Click.on(button),
+  );
+
+  /**
+ * Upload usando Playwright nativo (setInputFiles) sin depender de nativePage()
+ */
+
+export const UploadFileTo = (filePath: string, input: WebElement) =>
+  Interaction.where(
+    `#actor uploads "${path.basename(filePath)}"`,
+    async (actor: UsesAbilities & AnswersQuestions & CollectsArtifacts) => {
+      const native = await (input as any).nativeElement() as Locator;
+      await native.setInputFiles(path.resolve(filePath));
+    }
+  );
+
+
+
+export const SetDateOfBirth = (monthValue: string, yearText: string, day: number) =>
+  Task.where(
+    `#actor sets Date of Birth to ${ day }/${ monthValue }/${ yearText }`,
+    Click.on(PracticeForm.DateOfBirthInput),
+    Wait.upTo(Duration.ofSeconds(10)).until(PracticeForm.MonthSelect, isVisible()),
+    Select.value(monthValue).from(PracticeForm.MonthSelect),
+    Select.option(yearText).from(PracticeForm.YearSelect),
+    Click.on(PracticeForm.Day(day)),
+  );
+
+export const SelectSubject = (typeValue: string, optionText: string) =>
+  Task.where(
+    `#actor selects subject "${ optionText }"`,
+    Click.on(PracticeForm.SubjectsInput),
+    Enter.theValue(typeValue).into(PracticeForm.SubjectsInput),
+    Wait.upTo(Duration.ofSeconds(10)).until(PracticeForm.SubjectOption(optionText), isVisible()),
+    Click.on(PracticeForm.SubjectOption(optionText)),
+  );
+
+const ReactSelectInputIn = (control: Answerable<PageElement<unknown>>) =>
+  PageElement.located(By.css('input[id^="react-select-"][id$="-input"]:not([disabled])'))
+    .of(control)
+    .describedAs('React-select input (enabled)');
+
+const ReactSelectOption = (optionText: string) =>
+  PageElement.located(
+    By.cssContainingText('div[id^="react-select-"][id*="-option-"]', optionText)
+  ).describedAs(`React-select option: ${ optionText }`);
+
+export const SelectFromReactSelect = (
+  control: Answerable<PageElement<unknown>>,
+  value: string,
+) =>
+  Task.where(
+    `#actor selects "${ value }" from react-select`,
+    ScrollTo(control),
+    Wait.upTo(Duration.ofSeconds(10)).until(control, isVisible()),
+    Click.on(control),
+
+    // ✅ ahora es único porque está "dentro" del control + not disabled
+    Wait.upTo(Duration.ofSeconds(10)).until(ReactSelectInputIn(control).isPresent(), isTrue()),
+    Enter.theValue(value).into(ReactSelectInputIn(control)),
+
+    Wait.upTo(Duration.ofSeconds(10)).until(ReactSelectOption(value), isVisible()),
+    Click.on(ReactSelectOption(value)),
+  );
+
+export const CheckAllHobbies = () =>
+  PracticeForm.HobbiesOptions.forEach(current =>
+    current.actor.attemptsTo(
+      Scroll.to(current.item),
+      Wait.upTo(Duration.ofSeconds(10)).until(current.item, isVisible()),
+      Click.on(current.item),
+    )
+  );
+
+
+/**
+ * Submit + sincronización:
+ * En Playwright esto equivale a "capturar la promesa" del submit,
+ * porque esperamos el evento observable (modal visible) para confirmar éxito.
+ */
+export const SubmitAndWaitForModal = () =>
+  Task.where(
+    '#actor submits the form and waits for the confirmation modal',
+    Scroll.to(PracticeForm.Submit),
+    Wait.upTo(Duration.ofSeconds(10)).until(PracticeForm.Submit, isVisible()),
+    Ensure.that(Text.of(PracticeForm.Submit), equals('Submit')),
+    Click.on(PracticeForm.Submit),
+    Wait.upTo(Duration.ofSeconds(15)).until(PracticeFormModal.Content, isVisible()),
+  );
+
+export const CloseModalAndVerifyHidden = () =>
+  Task.where(
+    '#actor closes the modal and verifies it is hidden',
+    Scroll.to(PracticeFormModal.Close),
+    Wait.upTo(Duration.ofSeconds(10)).until(PracticeFormModal.Close, isVisible()),
+    Ensure.that(Text.of(PracticeFormModal.Close), equals('Close')),
+    Click.on(PracticeFormModal.Close),
+    Ensure.that(PracticeFormModal.Content, not(isVisible())),
+  );
+
+/**
+ * Mini util para validar que el archivo adjunto es el esperado
+ * (en DemoQA normalmente devuelve "C:\\fakepath\\<file>")
+ */
+
+export const VerifyUploadedFileName = (expectedFileName: string) =>
+  Task.where(
+    `#actor verifies uploaded filename contains "${ expectedFileName }"`,
+    Wait.upTo(Duration.ofSeconds(15)).until(PracticeFormModal.Content, isVisible()),
+    Ensure.that(PracticeFormModalRows.valueFor('Picture'), includes(expectedFileName)),
+  );
+
+export const VerifyModalRowExists = (label: string) =>
+  Task.where(
+    `#actor verifies modal row "${label}" exists`,
+    // Si la fila no existe, valueFor fallará/timeout; esto obliga a resolverla.
+    Wait.upTo(Duration.ofSeconds(5)).until(
+      PracticeFormModalRows.valueFor(label),
+      not(equals('___ROW_NOT_FOUND___')),
+    ),
+  );
+
+
+  /**
+ * Removes fixed overlays (ads/footer) on DemoQA that can block clicks/visibility.
+ *
+ * Breadcrumb: Sprint 3 | TODO:
+ * - Keep this as a DemoQA-only harness utility. Avoid using in real apps unless necessary.
+ */
+export const RemoveFixedOverlays = () =>
+  Task.where(
+    '#actor removes fixed overlays that can block interactions',
+    ExecuteScript.sync(`
+      const selectors = ['#fixedban', 'footer'];
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+      }
+    `),
+  );
+
+export const EnsureFileInputReady = (input: WebElement) =>
+  Task.where(
+    '#actor ensures file input is present',
+    Ensure.that(input.isPresent(), isTrue()),
   );
