@@ -15,4 +15,8 @@ export class PracticeFormModal {
 
   static Close = PageElement.located(By.id('closeLargeModal'))
     .describedAs('Close modal button');
+
+  static Backdrop = PageElement.located(By.css('.modal-backdrop'))
+  .describedAs('Modal backdrop');
+
 }

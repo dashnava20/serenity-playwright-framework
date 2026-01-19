@@ -1,6 +1,6 @@
 import { test } from '@serenity-js/playwright-test';
 import { Duration, Wait } from '@serenity-js/core';
-import { Ensure, equals, isTrue } from '@serenity-js/assertions';
+import { Ensure, equals, isPresent, isTrue } from '@serenity-js/assertions';
 import { isVisible, Page } from '@serenity-js/web';
 
 import { NavigateTo } from '../src/tasks/NavigateTo';
@@ -53,8 +53,10 @@ test.describe('DemoQA - Elements', () => {
       CompleteTextBoxForm(textBoxData),
 
       // Output visible
-      Wait.upTo(Duration.ofSeconds(15)).until(TextBoxForm.OutputPanel, isVisible()),
+      Wait.upTo(Duration.ofSeconds(15)).until(TextBoxForm.OutputPanel. isPresent(), isTrue()),
       ScrollTo(TextBoxForm.OutputPanel),
+
+      Wait.upTo(Duration.ofSeconds(10)).until(TextBoxForm.OutputPanel, isVisible()),
 
       // Validar output vs input (core del caso)
       Ensure.that(TextBoxOutput.userName(), equals(textBoxData.userName)),

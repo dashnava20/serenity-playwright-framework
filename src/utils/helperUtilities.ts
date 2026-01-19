@@ -237,8 +237,20 @@ export const CloseModalAndVerifyHidden = () =>
     Wait.upTo(Duration.ofSeconds(10)).until(PracticeFormModal.Close, isVisible()),
     Ensure.that(Text.of(PracticeFormModal.Close), equals('Close')),
     Click.on(PracticeFormModal.Close),
-    Ensure.that(PracticeFormModal.Content, not(isVisible())),
+
+    // 1) modal content ya no visible (lo más importante)
+    Wait.upTo(Duration.ofSeconds(10)).until(
+      PracticeFormModal.Content,
+      not(isVisible()),
+    ),
+
+    // 2) backdrop se fue (evita bloqueos para el resto del test)
+    Wait.upTo(Duration.ofSeconds(10)).until(
+      PracticeFormModal.Backdrop.isPresent(),
+      equals(false),
+    ),
   );
+
 
 /**
  * Mini util para validar que el archivo adjunto es el esperado
@@ -249,8 +261,10 @@ export const VerifyUploadedFileName = (expectedFileName: string) =>
   Task.where(
     `#actor verifies uploaded filename contains "${ expectedFileName }"`,
     Wait.upTo(Duration.ofSeconds(15)).until(PracticeFormModal.Content, isVisible()),
+    VerifyModalRowExists('Picture'),
     Ensure.that(PracticeFormModalRows.valueFor('Picture'), includes(expectedFileName)),
   );
+
 
 export const VerifyModalRowExists = (label: string) =>
   Task.where(
@@ -273,55 +287,24 @@ export const RemoveFixedOverlays = () =>
   Task.where(
     '#actor removes fixed overlays that can block interactions',
     ExecuteScript.sync(`
-      (() => {
-        const selectorsToRemove = [
-          '#fixedban',
-          'footer',
-          '#adplus-anchor',
-          'ins.adsbygoogle',
-          'div[id^="google_ads"]',
-          'iframe[id^="google_ads"]',
-          'iframe[src*="doubleclick"]',
-          'iframe[src*="googlesyndication"]',
-          'iframe[title*="advertisement"]',
-          'iframe[aria-label*="advertisement"]',
-        ];
+      const selectors = [
+        '#fixedban',
+        'footer',
+        '.modal-backdrop',
+        'div[class*="modal-backdrop"]',
+      ];
 
-        const remove = (el) => { try { el.remove(); } catch(e) {} };
-        const hide = (el) => {
-          try {
-            el.style.setProperty('display', 'none', 'important');
-            el.style.setProperty('visibility', 'hidden', 'important');
-            el.style.setProperty('pointer-events', 'none', 'important');
-          } catch(e) {}
-        };
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+      }
 
-        const kill = () => {
-          // 1) Remove known DemoQA blockers
-          selectorsToRemove.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => remove(el));
-          });
-
-          // 2) Hide any fixed/sticky iframes only (safer than guessing by id/class)
-          document.querySelectorAll('iframe').forEach(iframe => {
-            const st = window.getComputedStyle(iframe);
-            const isFixed = st.position === 'fixed' || st.position === 'sticky';
-            const z = parseInt(st.zIndex || '0', 10);
-            if (isFixed && z >= 999) hide(iframe);
-          });
-        };
-
-        kill();
-
-        // Optional: keep killing only these safe selectors if they reappear
-        if (!window.__demoqaOverlayKillerSafe) {
-          window.__demoqaOverlayKillerSafe = true;
-          const obs = new MutationObserver(() => kill());
-          obs.observe(document.body, { childList: true, subtree: true });
-        }
-      })();
+      // Bootstrap modal cleanup (si quedó pegado)
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+      document.body.style.removeProperty('overflow');
     `),
   );
+
 
 
 export const EnsureFileInputReady = (input: WebElement) =>

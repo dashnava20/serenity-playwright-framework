@@ -84,4 +84,31 @@ export class PracticeForm {
 
   static Submit = PageElement.located(By.id('submit'))
     .describedAs('Submit button');
+
+  static CheckedGender = PageElements.located(
+    By.css('#genterWrapper input[type="radio"]:checked')
+  ).describedAs('Checked gender radio');
+
+  static CheckedHobbies = PageElements.located(
+    By.css('#hobbiesWrapper input[type="checkbox"]:checked')
+  ).describedAs('Checked hobbies checkboxes');
+
+  static StatePlaceholder = PageElement.located(
+    By.css('#state div[class*="-placeholder"]')
+  ).describedAs('State placeholder');
+
+  static City = PageElement.located(By.id('city'))
+    .describedAs('City wrapper');
+
+  static CityInputDisabled = PageElement.located(
+    By.css('#city input[id^="react-select-"][disabled]')
+  ).describedAs('City react-select input (disabled)');
+
+  static CitySingleValue = PageElement.located(
+    By.css('#city div[class*="-singleValue"]')
+  ).describedAs('City selected value (singleValue)');
+
+  static CityPlaceholder = PageElement.located(
+    By.css('#city div[class*="-placeholder"]')
+  ).describedAs('City placeholder');
 }

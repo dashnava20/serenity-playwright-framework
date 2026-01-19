@@ -26,9 +26,7 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
     video: 'on',
 
     /**
-     * ✅ Fix for --debug:
-     * In debug mode Playwright can slow down/pauses, and Serenity Photographer screenshots per step
-     * may exceed the default cueTimeout (5s). We relax timeouts and reduce photo strategy.
+     * Fix for --debug: Al usar el --debug se presentaban errores, por lo que se brindó un mini-fix.
      */
     cueTimeout: isDebug ? 60_000 : 5_000,
     interactionTimeout: isDebug ? 60_000 : 5_000,
@@ -40,4 +38,11 @@ export default defineConfig<SerenityFixtures, SerenityWorkerFixtures>({
 
     defaultActorName: 'Daniel',
   },
+
+  // Cross-browser
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'firefox',  use: { browserName: 'firefox' } },
+    { name: 'webkit',   use: { browserName: 'webkit' } },
+  ],
 });
