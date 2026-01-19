@@ -1,5 +1,6 @@
 import path from 'node:path';
-import type { Locator } from 'playwright';
+import type { Locator, Page as PWPage } from 'playwright';
+import { BrowseTheWebWithPlaywright } from '@serenity-js/playwright';
 import { ScrollTo } from '../tasks/ScrollTo';
 import { Ensure, equals, includes, isTrue, not } from '@serenity-js/assertions';
 import {
@@ -7,6 +8,7 @@ import {
   Answerable,
   CollectsArtifacts,
   Interaction,
+  Question,
   QuestionAdapter,
   Duration,
   Task,
@@ -27,6 +29,7 @@ import {
   Press,
   Scroll,
   Select,
+  Switch,
   Text,
   Value,
   PageElement,
@@ -36,6 +39,8 @@ import { ElementsSidebar } from '../ui/ElementsSidebar';
 import { PracticeForm } from '../ui/PracticeForm';
 import { PracticeFormModal } from '../ui/PracticeFormModal';
 import { PracticeFormModalRows } from '../questions/PracticeFormModalRows';
+import { SamplePage } from '../ui/SamplePage';
+
 
 export type WebElement = PageElement<unknown> | QuestionAdapter<PageElement<unknown>>;
 type CollapseState = 'collapsed' | 'expanded';
@@ -282,3 +287,160 @@ export const EnsureFileInputReady = (input: WebElement) =>
     '#actor ensures file input is present',
     Ensure.that(input.isPresent(), isTrue()),
   );
+
+  // Alertas y diálogos modales
+
+export const AcceptNextModalDialog = () =>
+  Interaction.where(
+    '#actor prepares to accept the next modal dialog',
+    async actor => {
+      const page = await BrowseTheWebWithPlaywright.as(actor).currentPage();
+      page.modalDialog().acceptNext();
+    },
+  );
+
+export const LastModalDialogMessage = () =>
+  Question.about<string>(
+    'last modal dialog message',
+    async actor => {
+      const page = await BrowseTheWebWithPlaywright.as(actor).currentPage();
+      const dialog = await page.modalDialog().last();
+      return await dialog.message();
+    },
+  );
+
+export const LastModalDialogState = () =>
+  Question.about<string>(
+    'last modal dialog state',
+    async actor => {
+      const page = await BrowseTheWebWithPlaywright.as(actor).currentPage();
+      const dialog = await page.modalDialog().last();
+      return await dialog.state(); // 'accepted' | 'dismissed' | 'absent'
+    },
+  );
+
+export const ClickAlertAndAccept = (
+  button: any,
+  expectedButtonText: string,
+  expectedMessage: string,
+) =>
+  Task.where(
+    '#actor triggers an alert and accepts it',
+    Ensure.that(button, isVisible()),
+    Ensure.that(Text.of(button), equals(expectedButtonText)),
+
+    AcceptNextModalDialog(),
+    Click.on(button),
+
+    Wait.upTo(Duration.ofSeconds(10)).until(LastModalDialogState(), not(equals('absent'))),
+    Ensure.that(LastModalDialogMessage(), equals(expectedMessage)),
+    Ensure.that(LastModalDialogState(), equals('accepted')),
+  );
+
+  // Navegación de ventanas/pestañas
+
+export const NumberOfOpenPages = () =>
+  Question.about('number of open pages', async (actor: UsesAbilities & AnswersQuestions) => {
+    const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
+    const nativePage: PWPage = await (serenityPage as any).nativePage();
+    return nativePage.context().pages().length;
+  });
+
+export const CloseNewestTab = () =>
+  Interaction.where('#actor closes the newest tab', async (actor: UsesAbilities & AnswersQuestions) => {
+    const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
+    const nativePage: PWPage = await (serenityPage as any).nativePage();
+    const pages = nativePage.context().pages();
+    if (pages.length > 1) {
+      await pages[pages.length - 1].close();
+    }
+  });
+
+export const OpenNewTabAndVerifySample = (button: WebElement) =>
+  Task.where(
+    '#actor opens a new tab and verifies the sample page',
+    Ensure.that(button, isVisible()),
+    Ensure.that(Text.of(button), equals('New Tab')),
+
+    Interaction.where('#actor opens new tab (Playwright) and validates /sample', async (actor: UsesAbilities & AnswersQuestions) => {
+      const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
+      const nativePage: PWPage = await (serenityPage as any).nativePage();
+      const context = nativePage.context();
+
+      const beforePages = context.pages();
+
+      const tryGetNewPage = async (): Promise<PWPage | null> => {
+        // intentamos capturar por evento (rápido)
+        const popupPromise = nativePage.waitForEvent('popup', { timeout: 4000 }).catch(() => null);
+
+        // click “normal”
+        await nativePage.locator('#tabButton').click().catch(async () => {
+          // fallback: click via serenity element si el locator falla por algo raro
+          const nativeButton = await (button as any).nativeElement();
+          await nativeButton.click();
+        });
+
+        const popup = await popupPromise;
+        if (popup) return popup;
+
+        // fallback: detectar por incremento en context.pages()
+        const deadline = Date.now() + 6000;
+        while (Date.now() < deadline) {
+          const pages = context.pages();
+          const newOne = pages.find(p => !beforePages.includes(p)) ?? null;
+          if (newOne) return newOne;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return null;
+      };
+
+      // 1) intento normal
+      let newPage = await tryGetNewPage();
+
+      // 2) intento extra: click por JS (a veces window.open se “resiste”)
+      if (!newPage) {
+        const popupPromise = nativePage.waitForEvent('popup', { timeout: 6000 }).catch(() => null);
+
+        await nativePage.evaluate(() => {
+          const btn = document.querySelector('#tabButton') as HTMLButtonElement | null;
+          btn?.click();
+        });
+
+        newPage = await popupPromise;
+        if (!newPage) {
+          const pages = context.pages();
+          newPage = pages.find(p => !beforePages.includes(p)) ?? null;
+        }
+      }
+
+      // 3) último fallback: por si navegó en la misma pestaña (poco común, pero posible)
+      if (!newPage) {
+        await nativePage.waitForLoadState('domcontentloaded');
+        const url = nativePage.url();
+
+        if (!url.includes('/sample')) {
+          throw new Error(`No new tab detected and current tab did not navigate to "/sample". Current URL: ${ url }`);
+        }
+
+        const heading = (await nativePage.locator('#sampleHeading').innerText()).trim();
+        if (heading !== 'This is a sample page') {
+          throw new Error(`Expected heading "This is a sample page" but got: "${ heading }"`);
+        }
+        return;
+      }
+
+      await newPage.waitForLoadState('domcontentloaded');
+
+      // espera “real” a /sample (a veces abre y navega milisegundos después)
+      await newPage.waitForURL(/\/sample/, { timeout: 15000 });
+
+      const heading = (await newPage.locator('#sampleHeading').innerText()).trim();
+      if (heading !== 'This is a sample page') {
+        throw new Error(`Expected heading "This is a sample page" but got: "${ heading }"`);
+      }
+
+      // opcional: cerrar la pestaña nueva para no dejar basura
+      //await newPage.close().catch(() => void 0);
+    }),
+  );
+
