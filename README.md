@@ -124,7 +124,7 @@ npx playwright install
 node -v
 npm -v
 npx playwright --version
-
+```
 ---
 
 ## Running the Tests
