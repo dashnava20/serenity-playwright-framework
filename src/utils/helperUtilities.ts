@@ -444,3 +444,98 @@ export const OpenNewTabAndVerifySample = (button: WebElement) =>
     }),
   );
 
+//Interactions - Droppable
+
+export const DragAndDropNative = (source: WebElement, target: WebElement) =>
+  Interaction.where(
+    '#actor performs drag and drop (Playwright native)',
+    async (_actor: UsesAbilities & AnswersQuestions & CollectsArtifacts) => {
+      const src = await (source as any).nativeElement() as Locator;
+      const dst = await (target as any).nativeElement() as Locator;
+
+      await src.waitFor({ state: 'visible', timeout: 10_000 });
+      await dst.waitFor({ state: 'visible', timeout: 10_000 });
+
+      await src.scrollIntoViewIfNeeded();
+      await dst.scrollIntoViewIfNeeded();
+
+      const handle = await src.elementHandle();
+      if (!handle) throw new Error('Could not resolve elementHandle() for draggable source');
+
+      const frame = await handle.ownerFrame();
+      const page = frame?.page();
+      if (!page) throw new Error('Could not resolve Playwright Page from draggable source');
+
+      const readDropText = async () => (await dst.locator('p').innerText()).trim();
+      const readDropClass = async () => (await dst.getAttribute('class')) ?? '';
+
+      // ✅ Reintentos (jQuery UI puede ser flaky con drag)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const srcBox = await src.boundingBox();
+        const dstBox = await dst.boundingBox();
+        if (!srcBox || !dstBox) {
+          throw new Error('Could not resolve bounding boxes for drag and drop elements');
+        }
+
+        const startX = srcBox.x + srcBox.width / 2;
+        const startY = srcBox.y + srcBox.height / 2;
+
+        // Aterriza dentro del target, no en el borde
+        const endX = dstBox.x + dstBox.width * 0.6;
+        const endY = dstBox.y + dstBox.height * 0.6;
+
+        await page.mouse.move(startX, startY);
+        await page.mouse.down();
+        await page.waitForTimeout(200);
+
+        // “Iniciar” drag (pequeño desplazamiento)
+        await page.mouse.move(startX + 80, startY + 5, { steps: 12 });
+        await page.waitForTimeout(150);
+
+        // Ir al target con pasos lentos
+        await page.mouse.move(endX, endY, { steps: 45 });
+        await page.waitForTimeout(150);
+
+        // Pequeño jitter dentro del target
+        await page.mouse.move(endX + 8, endY + 8, { steps: 6 });
+        await page.waitForTimeout(100);
+
+        await page.mouse.up();
+        await page.waitForTimeout(250);
+
+        const text = await readDropText().catch(() => '');
+        const cls = await readDropClass().catch(() => '');
+
+        if (text === 'Dropped!' || cls.includes('ui-state-highlight')) {
+          return; // ✅ drop registrado
+        }
+
+        // Si no cayó, reintenta con otro gesto (sin romper el test aún)
+        await page.waitForTimeout(200);
+      }
+
+      // Debug final
+      const finalText = await readDropText().catch(() => '(unreadable)');
+      const finalClass = await readDropClass().catch(() => '(unreadable)');
+      throw new Error(
+        `Drag&Drop did not register after retries. Text="${finalText}", class="${finalClass}"`,
+      );
+    },
+  );
+
+
+
+export const BackgroundColorOfNative = (element: WebElement) =>
+  Interaction.where(
+    '#actor reads background-color (Playwright native)',
+    async (actor: UsesAbilities & AnswersQuestions) => {
+      const serenityPage = await BrowseTheWebWithPlaywright.as(actor as any).currentPage();
+      const nativePage: PWPage = await (serenityPage as any).nativePage();
+
+      const el = await (element as any).nativeElement();
+      const color = await el.evaluate((node: HTMLElement) => getComputedStyle(node).backgroundColor);
+
+      // lo dejamos disponible como log (no usamos memory/notas para no añadir complejidad)
+      console.log(`[debug] background-color = ${ color }`);
+    },
+  );
