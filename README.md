@@ -113,39 +113,40 @@ This repo includes additional QA documentation to support learning, replication,
 ---
 
 ## Getting Started
-    ```bash
-    Install dependencies
-    npm install
-    npx playwright install
-    ```
+```bash
+# Install dependencies
+npm install
+npx playwright install
+```
 
 ## Verify versions (optional)
-- node -v
-- npm -v
-- npx playwright --version
+```bash
+node -v
+npm -v
+npx playwright --version
 
 ---
 
 ## Running the Tests
-    ```bash
-    Run all tests
-    npx playwright test
-    ```
+```bash
+Run all tests
+npx playwright test
+```
 
 ### Run a single spec
-    ```bash
-    npx playwright test specs/demoqa.bookstore.spec.ts
-    ```
+```bash
+npx playwright test specs/demoqa.bookstore.spec.ts
+```
 
 ### Headed mode
-    ```bash
-    npx playwright test --headed
-    ```
+```bash
+npx playwright test --headed
+```
 
 ### Debug mode
-    ```bash
-    npx playwright test --debug
-    ```
+```bash
+npx playwright test --debug
+```
 ---
 
 ## Cross-Browser Execution
@@ -154,9 +155,9 @@ This framework supports cross-browser runs via Playwright projects (Chromium, Fi
 
 If your playwright.config.ts is already configured with projects, run:
 
-    ```bash
-    npx playwright test
-    ```
+```bash
+npx playwright test
+```
 
 Playwright will execute the suite across all configured browsers.
 
@@ -164,14 +165,14 @@ Playwright will execute the suite across all configured browsers.
 
 ## Reporting (Serenity BDD)
 ### Generate the Serenity report
-    ```bash
-    npx serenity-bdd run
-    ```
+```bash
+npx serenity-bdd run
+```
 ### Report path
 Open:
-    ```text
-    target/site/serenity/index.html
-    ```
+```text
+target/site/serenity/index.html
+```
 
 ---
 
@@ -187,10 +188,10 @@ Open:
 To avoid mixing old and new results (and inflating the report test count), remove previous outputs before a full regression run.
 
 ### PowerShell
-    ```powershell
-    Remove-Item -Recurse -Force .\target, .\test-results, .\playwright-report -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force .\reports, .\artifacts -ErrorAction SilentlyContinue
-    ```
+```powershell
+Remove-Item -Recurse -Force .\target, .\test-results, .\playwright-report -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .\reports, .\artifacts -ErrorAction SilentlyContinue
+```
 ---
 
 ## Key Design Decisions (Short Summary)
